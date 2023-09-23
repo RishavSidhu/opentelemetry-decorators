@@ -16,4 +16,3 @@ class TemplateConfig:
     JAEGER_EXPORTER: Optional[Dict] = None
     ZIPKIN_EXPORTER: Optional[Dict] = None
     SERVICE_TYPE: AbstractService.__subclasses__() = None
-    outbound_attributes: dict

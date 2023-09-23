@@ -8,7 +8,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource
 
 from . import handlers
-import template_config
+from . import template_config
 
 _is_trace_initialized = False
 _tracer: Tracer
@@ -16,6 +16,11 @@ _config: template_config.TemplateConfig
 
 
 def trace_init(config: template_config.TemplateConfig):
+    """
+    Initialize tracing with exporter.
+    :param config:
+    :return: True if tracing successfully initialized else False
+    """
     global _tracer, _is_trace_initialized, _config
     if _is_trace_initialized:
         return _is_trace_initialized
@@ -44,13 +49,27 @@ def trace_init(config: template_config.TemplateConfig):
     return _is_trace_initialized
 
 
-def trace_decorator(name: Optional[str] = None,
-                    kind: Optional[SpanKind] = SpanKind.INTERNAL,
-                    carrier_name: str = None
-                    ):
+def trace_as_current_span(name: Optional[str] = None,
+                          kind: Optional[SpanKind] = SpanKind.INTERNAL,
+                          carrier_name: str = None
+                          ):
+    """
+    Traces spans similar to start_as_current_span. Attaches parent context from services getter for inbound calls,
+    and set propagator context for outbound calls.
+    :param name: Span Name
+    :param kind: Span Kind
+    :param carrier_name: Carrier for propagator getter or setter
+    :return:
+    """
     def decorator(func: Callable):
         @wraps(func)
         def traceable_wrapper(*args, **kwargs):
+            """
+            Traces spans with otel tracer.
+            :param args:
+            :param kwargs:
+            :return:
+            """
             name_ = name if name else func.__name__
             if kind in {SpanKind.SERVER, SpanKind.CONSUMER}:
                 handler = handlers.InBoundHandlers.get(type(_config.SERVICE_TYPE))
@@ -68,6 +87,12 @@ def trace_decorator(name: Optional[str] = None,
 
         @wraps(func)
         def un_traceable_wrapper(*args, **kwargs):
+            """
+            If tracing is not properly initialized.
+            :param args:
+            :param kwargs:
+            :return:
+            """
             return func(*args, **kwargs)
 
         if _is_trace_initialized:
@@ -78,6 +103,13 @@ def trace_decorator(name: Optional[str] = None,
 
 
 def set_status(status: StatusCode, span: Optional[Span] = None, force: bool = False):
+    """
+    Set status of span
+    :param status:
+    :param span:
+    :param force:
+    :return:
+    """
     span = span or trace.get_current_span()
     if hasattr(span, "status"):
         if (span.status.status_code == StatusCode.UNSET) or force:
@@ -98,6 +130,12 @@ def add_to_bag(key, value): baggage.set_value(key, value)
 
 
 def record_exception(exception: Exception, span: Optional[Span] = None):
+    """
+    Record exceptions into span
+    :param exception:
+    :param span:
+    :return:
+    """
     span = span or trace.get_current_span()
     span.set_status(Status(StatusCode.ERROR))
     span.record_exception(exception)
