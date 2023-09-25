@@ -51,14 +51,15 @@ def trace_init(config: template_config.TemplateConfig):
 
 def trace_as_current_span(name: Optional[str] = None,
                           kind: Optional[SpanKind] = SpanKind.INTERNAL,
-                          carrier_name: str = None
+                          carrier_id_or_name: str = None
                           ):
     """
     Traces spans similar to start_as_current_span. Attaches parent context from services getter for inbound calls,
     and set propagator context for outbound calls.
     :param name: Span Name
     :param kind: Span Kind
-    :param carrier_name: Carrier for propagator getter or setter
+    :param carrier_id_or_name: Carrier is extracted from args or kwargs for id or name respectively.
+        for propagator getter or setter based on SpanKind SERVER or CLIENT respectively.
     :return:
     """
     def decorator(func: Callable):
@@ -72,14 +73,15 @@ def trace_as_current_span(name: Optional[str] = None,
             """
             name_ = name if name else func.__name__
             if kind in {SpanKind.SERVER, SpanKind.CONSUMER}:
-                handler = handlers.InBoundHandlers.get(type(_config.SERVICE_TYPE))
-                if handler:
-                    parent_context = handler.get_parent_context(_config.SERVICE_TYPE, carrier_name, *args, **kwargs)
+                handler_cls = handlers.InBoundHandlers.get(type(_config.SERVICE_TYPE))
+                if handler_cls:
+                    handler = handler_cls()
+                    parent_context = handler.get_parent_context(_config.SERVICE_TYPE, carrier_id_or_name, *args, **kwargs)
                     context.attach(parent_context)
 
             with _tracer.start_as_current_span(name_, kind=kind) as current_span:
                 if kind in {SpanKind.CLIENT, SpanKind.PRODUCER}:
-                    args, kwargs = handlers.OutBoundHandler(carrier_name, *args, **kwargs)
+                    args, kwargs = handlers.OutBoundHandler(carrier_id_or_name, *args, **kwargs)
 
                 rv = func(*args, **kwargs)
                 set_status(StatusCode.OK, current_span)
